@@ -4,7 +4,7 @@ A personal Telegram bot built with Node.js, featuring AI chat, media tools, and 
 
 ## 🎬 Preview
 
-[▶️ Watch Luttuxer MD Preview](https://files.catbox.moe/unbug6.mp4)
+![Luttuxer MD Preview](preview.gif)
 
 ## ✨ Features
 
