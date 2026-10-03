@@ -1,6 +1,6 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { GoogleGenAI } = require('@google/genai');
@@ -103,20 +103,31 @@ function moreMenu() {
 bot.onText(/^\/start$/, async (msg) => {
 
   const text =
-`╭━━━━━━━━━━━━━━━━━━━━━━╮
-        𝙇𝙐𝙏𝙏𝙐𝙓𝙀𝙍 𝙈𝘿
+`╭━━━〔 ⚡ CYBER ZONE ⚡ 〕━━━╮
+       𝙇𝙐𝙏𝙏𝙐𝙓𝙀𝙍 𝙈𝘿
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
 
-⚡ 𝙋𝙍𝙀𝙈𝙄𝙐𝙈 𝙏𝙀𝙇𝙀𝙂𝙍𝘼𝙈 𝘽𝙊𝙏
+⟡ ⚡ PREMIUM TELEGRAM BOT ⚡ ⟡
+
+╭────────────────────╮
+  👥 5K+ USERS COMMUNITY
+  🚀 FAST • SMART • POWERFUL
+  📥 MEDIA DOWNLOADER
+  🛠️ PREMIUM MEDIA TOOLS
+╰────────────────────╯
 
 👋🏻 Welcome, ${msg.from.first_name || 'User'}!
 
-🚀 Fast • Smart • Powerful
-📥 Media Downloader & Tools
-
-👇🏻 𝙎𝙀𝙇𝙀𝘾𝙏 𝘼 𝙁𝙀𝘼𝙏𝙐𝙍𝙀
+◈ SELECT YOUR FEATURE BELOW ◈
+⚡ Choose a button to get started!
 
 ${BRAND}`;
+
+  await bot.sendVideo(
+    msg.chat.id,
+    'https://lokixer.onrender.com/file/olagolnihtlnu.mp4',
+    { supports_streaming: true }
+  );
 
   await bot.sendMessage(
     msg.chat.id,
@@ -263,6 +274,75 @@ bot.onText(/^\/about$/, async (msg) => {
 // CALLBACK BUTTONS
 // ===============================
 
+const pendingQualityLinks = new Map();
+
+const pendingMp3Files = new Map();
+
+async function convertAndSendMp3(chatId, id) {
+  const item = pendingMp3Files.get(id);
+  if (!item) {
+    await bot.sendMessage(chatId, '⌛ Ee video request expire aayi. Video veendum ayakku.');
+    return;
+  }
+
+  pendingMp3Files.delete(id);
+  const output = path.join(DOWNLOAD_DIR, 'luttuxer_audio_' + id + '.mp3');
+
+  try {
+    await bot.sendMessage(chatId, '🎵 MP3 convert cheyyunnu... kuttaa, wait 🤍');
+
+    await new Promise((resolve, reject) => {
+      const child = spawn('ffmpeg', [
+        '-y', '-i', item.path, '-vn',
+        '-codec:a', 'libmp3lame', '-q:a', '2', output
+      ]);
+      child.on('error', reject);
+      child.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error('ffmpeg exit code ' + code));
+      });
+    });
+
+    if (!fs.existsSync(output) || fs.statSync(output).size === 0) {
+      throw new Error('MP3 output empty');
+    }
+    if (fs.statSync(output).size > 49 * 1024 * 1024) {
+      throw new Error('MP3 exceeds 49 MB');
+    }
+
+    await bot.sendAudio(chatId, output, {
+      title: '⏱‹‹ 𝞘𝞵𝞽⃕͜𝞽𝞴𝞺⃕𝞺𝞲 𝞭𝞮⃕͜𝟆 ↲ 🈀🥕',
+      performer: '⏱‹‹ 𝞘𝞵𝞽⃕͜𝞽𝞴𝞺⃕𝞺𝞲 𝞭𝞮⃕͜𝟆 ↲ 🈀🥕'
+    });
+  } catch (err) {
+    console.log('MP3 CONVERSION ERROR:', err.message);
+    await bot.sendMessage(chatId, '🥹 MP3 convert cheyyan pattiyilla. Vere video try cheyyu.');
+  } finally {
+    try { fs.unlinkSync(item.path); } catch {}
+    try { fs.unlinkSync(output); } catch {}
+  }
+}
+
+
+async function getAvailableQualities(url) {
+  return new Promise((resolve, reject) => {
+    execFile('yt-dlp', ['--no-warnings', '--no-playlist', '-J', url],
+      { timeout: 90000, maxBuffer: 20 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) return reject(new Error(stderr || err.message));
+        try {
+          const info = JSON.parse(stdout);
+          const heights = [...new Set((info.formats || [])
+            .filter(f => f.vcodec && f.vcodec !== 'none' && f.height)
+            .map(f => Number(f.height))
+            .filter(h => Number.isFinite(h) && h > 0))]
+            .sort((a, b) => a - b);
+          resolve(heights);
+        } catch (e) { reject(e); }
+      });
+  });
+}
+
 bot.on('callback_query', async (query) => {
 
   const chatId = query.message.chat.id;
@@ -324,12 +404,99 @@ Select a tool below 👇🏻
 
     await bot.sendMessage(
       chatId,
-`🎬 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈
+`🎬 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈 𝙏𝙊𝙊𝙇𝙎
 
-📥 Send a public Instagram
-Reel / Video / Post link.
+Choose what you want to do 👇`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '📥 Reel / Video', callback_data: 'ig_download' },
+              { text: '🖼️ Post / Photo', callback_data: 'ig_post' }
+            ],
+            [
+              { text: '👤 Profile Info', callback_data: 'ig_profile' },
+              { text: '🔗 URL Info', callback_data: 'ig_info' }
+            ],
+            [
+              { text: '🔙 Back', callback_data: 'back' }
+            ]
+          ]
+        }
+      }
+    );
 
-⚡ I'll try to download it for you.`
+    return;
+  }
+
+
+  // -----------------------------
+  // INSTAGRAM PROFILE INFO
+  // -----------------------------
+
+  if (data === 'ig_profile') {
+
+    await bot.sendMessage(
+      chatId,
+`👤 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈 𝙋𝙍𝙊𝙁𝙄𝙇𝙀
+
+Send a public Instagram profile URL.
+
+Example:
+https://instagram.com/username
+
+🔎 I'll try to fetch publicly available profile info.`
+    );
+
+    return;
+  }
+
+
+  // -----------------------------
+  // INSTAGRAM POST / PHOTO
+  // -----------------------------
+
+  if (data === 'ig_post') {
+
+    await bot.sendMessage(
+      chatId,
+`🖼️ 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈 𝙋𝙊𝙎𝙏
+
+Send a public Instagram post/photo link.`
+    );
+
+    return;
+  }
+
+
+  // -----------------------------
+  // INSTAGRAM URL INFO
+  // -----------------------------
+
+  if (data === 'ig_info') {
+
+    await bot.sendMessage(
+      chatId,
+`🔗 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈 𝙐𝙍𝙇 𝙄𝙉𝙁𝙊
+
+Send an Instagram Reel, Post or Profile URL.`
+    );
+
+    return;
+  }
+
+
+  // -----------------------------
+  // INSTAGRAM DOWNLOAD
+  // -----------------------------
+
+  if (data === 'ig_download') {
+
+    await bot.sendMessage(
+      chatId,
+`📥 𝙄𝙉𝙎𝙏𝘼𝙂𝙍𝘼𝙈 𝙍𝙀𝙀𝙇 / 𝙑𝙄𝘿𝙀𝙊
+
+Send a public Instagram Reel / Video link.`
     );
 
     return;
@@ -576,6 +743,163 @@ Send a supported URL or file.
 
 
   // -----------------------------
+
+  if (data.startsWith('mp3_yes_') || data.startsWith('mp3_convert_')) {
+    const id = data.startsWith('mp3_yes_')
+      ? data.slice('mp3_yes_'.length)
+      : data.slice('mp3_convert_'.length);
+    await convertAndSendMp3(chatId, id);
+    return;
+  }
+
+  if (data.startsWith('mp3_cancel_')) {
+    const id = data.slice('mp3_cancel_'.length);
+    const item = pendingMp3Files.get(id);
+    if (item) {
+      pendingMp3Files.delete(id);
+      try { fs.unlinkSync(item.path); } catch {}
+    }
+    await bot.sendMessage(chatId, '👌 MP3 conversion cancel cheythu.');
+    return;
+  }
+
+  if (data.startsWith('quality_')) {
+    const requested = Number(data.slice(8));
+    const pending = pendingQualityLinks.get(chatId);
+
+    if (![360, 480, 720, 1080].includes(requested) || !pending) {
+      await bot.sendMessage(chatId, '⌛ Link expire aayi. Video link veendum ayakku.');
+      return;
+    }
+
+    const lower = pending.heights.filter(h => h <= requested);
+    const actual = lower.length ? Math.max(...lower) : Math.min(...pending.heights);
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const output = path.join(DOWNLOAD_DIR, 'luttuxer_' + id + '.%(ext)s');
+
+    try {
+    let progressMessage;
+    let progressIsPhoto = false;
+    let lastShown = -5;
+
+    const progressCaption = (pct, speed = '', eta = '') => {
+      const n = Math.max(0, Math.min(100, Math.round(pct)));
+      const filled = Math.round(n / 5);
+      const bar = '━'.repeat(Math.min(filled, 19)) + (n >= 100 ? '●' : '●') + '─'.repeat(Math.max(0, 19 - filled));
+      return '🩵 𝙇𝙪𝙩𝙩𝙪𝙭𝙚𝙧 𝘿𝙇 🐼\n\n' +
+        '🎬 Downloading your video...\n' +
+        bar + '\n' + n + '% | ' + actual + 'p\n' +
+        (speed ? '⚡ Speed: ' + speed + '\n' : '') +
+        (eta ? '⏳ ETA: ' + eta + '\n' : '') +
+        '\n💙 Please wait, kuttaa!';
+    };
+
+    try {
+      progressMessage = await bot.sendPhoto(
+        chatId,
+        'https://lokixer.onrender.com/file/gpovunbnhaclj.jpg',
+        {
+          caption: progressCaption(0),
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🩵 LuttuXer DL', callback_data: 'progress_info' }
+            ]]
+          }
+        }
+      );
+      progressIsPhoto = true;
+    } catch (photoErr) {
+      console.log('PROGRESS PHOTO ERROR:', photoErr.message);
+      progressMessage = await bot.sendMessage(
+        chatId, progressCaption(0)
+      );
+    }
+
+    await new Promise((resolve, reject) => {
+      const args = [
+        '--no-playlist', '--no-warnings',
+        '--newline', '--progress',
+        '-f', 'bv[height=' + actual + ']+ba/b[height=' + actual + ']',
+        '--merge-output-format', 'mp4', '-o', output, pending.url
+      ];
+
+      const child = spawn('yt-dlp', args);
+      let logs = '';
+
+      const updateProgress = (chunk) => {
+        logs = (logs + chunk.toString()).slice(-12000);
+        const lines = logs.split(/\r?\n/);
+        const line = lines[lines.length - 1] || lines[lines.length - 2] || '';
+        const match = line.match(/(\d+(?:\.\d+)?)%/);
+        if (!match) return;
+
+        const pct = Number(match[1]);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) return;
+        const shown = Math.floor(pct / 5) * 5;
+        if (shown <= lastShown && pct < 100) return;
+        lastShown = shown;
+
+        const speed = (line.match(/\bat\s+([0-9.]+\s*[KMG]?i?B\/s)/i) || [])[1] || '';
+        const eta = (line.match(/\bETA\s+([0-9:]+)/i) || [])[1] || '';
+        const caption = progressCaption(pct, speed, eta);
+        const opts = {
+          chat_id: chatId,
+          message_id: progressMessage.message_id
+        };
+
+        const edit = progressIsPhoto
+          ? bot.editMessageCaption(caption, opts)
+          : bot.editMessageText(caption, opts);
+
+        edit.catch(() => {});
+      };
+
+      child.stdout.on('data', updateProgress);
+      child.stderr.on('data', updateProgress);
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error('yt-dlp exited with code ' + code));
+      });
+    });
+
+      const files = fs.readdirSync(DOWNLOAD_DIR)
+        .filter(n => n.startsWith('luttuxer_' + id + '.'))
+        .filter(n => !n.endsWith('.part'));
+
+      if (!files.length) throw Error('Downloaded file not found');
+
+      const fp = path.join(DOWNLOAD_DIR, files[0]);
+      if (fs.statSync(fp).size > 49 * 1024 * 1024) {
+        await bot.sendMessage(chatId, '⚠️ File 49 MB-il kooduthal aanu.');
+      } else {
+        await bot.sendVideo(chatId, fp, {
+          caption: '✅ 𝙇𝙪𝙩𝙩𝙪𝙭𝙚𝙧 𝘿𝙇 ⚡ | ' + actual + 'p'
+        });
+        pendingMp3Files.set(id, { path: fp });
+        await bot.sendMessage(chatId, '🎵 Ee video MP3 aakki tharano?', {
+          reply_markup: { inline_keyboard: [[
+            { text: '🎵 Yes, MP3', callback_data: 'mp3_yes_' + id },
+            { text: '❌ No', callback_data: 'mp3_cancel_' + id }
+          ]] }
+        });
+      }
+      if (!pendingMp3Files.has(id)) {
+        try { fs.unlinkSync(fp); } catch {}
+      }
+    } catch (err) {
+      console.log('QUALITY DOWNLOAD ERROR:', err.message);
+      await bot.sendMessage(chatId, '🥹 Ee quality download cheyyan pattiyilla. Vere quality automatic aayi try cheythittilla.');
+      try {
+        for (const n of fs.readdirSync(DOWNLOAD_DIR).filter(n => n.startsWith('luttuxer_' + id + '.'))) {
+          try { fs.unlinkSync(path.join(DOWNLOAD_DIR, n)); } catch {}
+        }
+      } catch {}
+    }
+    pendingQualityLinks.delete(chatId);
+    return;
+  }
+
   // HELP BUTTON
   // -----------------------------
 
@@ -619,8 +943,37 @@ let botUsername = '';
 
 bot.on('message', async (msg) => {
   try {
-    if (!msg.text) return;
     if (msg.from?.is_bot) return;
+
+    const uploadedVideo = msg.video ||
+      (msg.document && /^video\//i.test(msg.document.mime_type || '') ? msg.document : null);
+
+    if (uploadedVideo) {
+      const fileId = uploadedVideo.file_id;
+      const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+      try {
+        await bot.sendMessage(msg.chat.id, '📥 Video receive cheythu. MP3 option ready aakkunnu...');
+        const downloadedPath = await bot.downloadFile(fileId, DOWNLOAD_DIR);
+        const savedPath = path.join(DOWNLOAD_DIR, 'luttuxer_upload_' + id + path.extname(downloadedPath || ''));
+
+        fs.renameSync(downloadedPath, savedPath);
+        pendingMp3Files.set(id, { path: savedPath });
+
+        await bot.sendMessage(msg.chat.id, '🎵 Ee video MP3 aakki tharano?', {
+          reply_markup: { inline_keyboard: [[
+            { text: '🎵 Convert MP3', callback_data: 'mp3_convert_' + id },
+            { text: '❌ Cancel', callback_data: 'mp3_cancel_' + id }
+          ]] }
+        });
+      } catch (err) {
+        console.log('UPLOADED VIDEO ERROR:', err.message);
+        await bot.sendMessage(msg.chat.id, '🥹 Video download cheyyan pattiyilla. Cheriya video try cheyyu.');
+      }
+      return;
+    }
+
+    if (!msg.text) return;
 
     const text = msg.text.trim();
     const chatId = msg.chat.id;
@@ -638,80 +991,33 @@ bot.on('message', async (msg) => {
     const url = mediaUrlMatch[0].replace(/[)\]}>.,!?]+$/, '');
 
     if (/^(https?:\/\/)(www\.)?(instagram\.com|youtube\.com|youtu\.be|tiktok\.com|x\.com|twitter\.com|facebook\.com)\//i.test(url)) {
-      const path = require('path');
-      const fs = require('fs');
-
-      const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const output = path.join(DOWNLOAD_DIR, `luttuxer_${id}.%(ext)s`);
+      await bot.sendMessage(chatId, '🔎 Available video qualities check cheyyunnu...');
 
       try {
-        await bot.sendMessage(chatId, '⏳ Downloading media...');
+        const heights = await getAvailableQualities(url);
+        if (!heights.length) {
+          await bot.sendMessage(chatId, '🥹 Ee link-il video quality detect cheyyan pattiyilla.');
+          return;
+        }
 
-        await new Promise((resolve, reject) => {
-          execFile(
-            'yt-dlp',
+        pendingQualityLinks.set(chatId, { url, heights });
+        await bot.sendMessage(chatId,
+          '🎬 SELECT VIDEO QUALITY\n\nAvailable quality illenkil nearest available quality try cheyyum 👇',
+          { reply_markup: { inline_keyboard: [
             [
-              '--no-playlist',
-              '--no-warnings',
-              '-f',
-              'bv*+ba/b',
-              '--merge-output-format',
-              'mp4',
-              '-o',
-              output,
-              url
+              { text: '360p', callback_data: 'quality_360' },
+              { text: '480p', callback_data: 'quality_480' }
             ],
-            { timeout: 180000 },
-            (error, stdout, stderr) => {
-              if (error) {
-                reject(new Error(stderr?.trim() || error.message));
-                return;
-              }
-              resolve();
-            }
-          );
-        });
-
-        const files = fs.readdirSync(DOWNLOAD_DIR)
-          .filter(name => name.startsWith(`luttuxer_${id}.`));
-
-        if (!files.length) {
-          throw new Error('Downloaded file not found');
-        }
-
-        const filePath = path.join(DOWNLOAD_DIR, files[0]);
-        const stat = fs.statSync(filePath);
-
-        if (stat.size > 49 * 1024 * 1024) {
-          await bot.sendMessage(
-            chatId,
-            '⚠️ File valare valuth aanu. Telegram upload limit karanam send cheyyan pattilla.'
-          );
-        } else {
-          await bot.sendVideo(chatId, filePath, {
-            caption: '✅ 𝙇𝙪𝙩𝙩𝙪𝙭𝙚𝙧 𝙈𝘿 ⚡'
-          });
-        }
-
-        try { fs.unlinkSync(filePath); } catch {}
-      } catch (err) {
-        console.log('❌ MEDIA DOWNLOAD ERROR:', err.message);
-
-        await bot.sendMessage(
-          chatId,
-          '🥹 Ee link-il ninn media download cheyyan pattiyilla.\n\n🔒 Private/login-required content support illa.'
+            [
+              { text: '720p HD', callback_data: 'quality_720' },
+              { text: '1080p Full HD', callback_data: 'quality_1080' }
+            ]
+          ] } }
         );
-
-        try {
-          const files = fs.readdirSync(DOWNLOAD_DIR)
-            .filter(name => name.startsWith(`luttuxer_${id}.`));
-
-          for (const file of files) {
-            try { fs.unlinkSync(path.join(DOWNLOAD_DIR, file)); } catch {}
-          }
-        } catch {}
+      } catch (err) {
+        console.log('QUALITY DETECTION ERROR:', err.message);
+        await bot.sendMessage(chatId, '🥹 Ee link-inte quality check cheyyan pattiyilla. Public video link veendum ayakku.');
       }
-
       return;
     }
   }
