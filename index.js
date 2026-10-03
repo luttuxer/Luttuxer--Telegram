@@ -121,6 +121,18 @@ bot.onText(/^\/start$/, async (msg) => {
 ◈ SELECT YOUR FEATURE BELOW ◈
 ⚡ Choose a button to get started!
 
+𓆩♡𓆪 𝙇𝙪𝙩𝙩𝙪𝙭𝙚𝙧 𝘿𝙇 🦋
+
+🎬 ʏᴏᴜʀ ᴠɪᴅᴇᴏ, ʏᴏᴜʀ sᴛʏʟᴇ!
+
+✦ ʜᴅ ᴠɪᴅᴇᴏ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ 🎥
+✦ ᴜᴘ ᴛᴏ 1080ᴘ 💎
+✦ ᴠɪᴅᴇᴏ ᴛᴏ ᴍᴘ3 🎧
+✦ ʟɪᴠᴇ ᴘʀᴏɢʀᴇss 📊
+✦ ғᴀsᴛ • sᴍᴏᴏᴛʜ • sɪᴍᴘʟᴇ ⚡
+
+ᴍᴀᴅᴇ ᴡɪᴛʜ 🤍 ʙʏ ʟᴜᴛᴛᴜxᴇʀ
+
 ${BRAND}`;
 
   await bot.sendVideo(
