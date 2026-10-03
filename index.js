@@ -125,7 +125,7 @@ ${BRAND}`;
 
   await bot.sendVideo(
     msg.chat.id,
-    'https://lokixer.onrender.com/file/olagolnihtlnu.mp4',
+    path.join(__dirname, 'start-original.mp4'),
     { supports_streaming: true }
   );
 
@@ -797,7 +797,7 @@ Send a supported URL or file.
     try {
       progressMessage = await bot.sendPhoto(
         chatId,
-        'https://lokixer.onrender.com/file/gpovunbnhaclj.jpg',
+        path.join(__dirname, 'progress-model.jpg'),
         {
           caption: progressCaption(0),
           reply_markup: {
